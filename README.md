@@ -111,6 +111,7 @@ The simulations require R and the following R packages:
 ```r
 install.packages(c(
   "gofedf",
+  "glm2",
   "ggplot2",
   "dplyr",
   "purrr",
