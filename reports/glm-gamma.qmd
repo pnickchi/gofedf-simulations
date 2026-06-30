@@ -1,0 +1,158 @@
+---
+title: "Gamma GLM Simulation"
+format: html
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(tidyr)
+library(knitr)
+```
+
+# Gamma GLM simulation
+
+This report summarizes the Monte Carlo simulation study for the Gamma generalized linear model goodness-of-fit test implemented in `gofedf::testGLMGamma()`.
+
+For each sample size, data are generated from a Gamma GLM with a log link. A Gamma GLM is fitted to each simulated data set, and `testGLMGamma()` is used to assess whether the fitted model is consistent with the data-generating mechanism.
+
+```{r}
+sample_sizes <- c(25, 50, 100, 250)
+k_values <- c(2, 5, 10)
+gamma_shape <- c(1, 7, 50)
+discretize_values <- c(FALSE, TRUE)
+alpha <- 0.05
+```
+
+## Read p-values
+
+```{r}
+read_glm_gamma_pvalues <- function(n, k, gamma_shape, discretize) {
+  file <- paste0(
+    "../results/glm_gamma/glm_gamma_n", n,
+    "_k", k,
+    "_shape", gamma_shape,
+    "_discretize_", discretize,
+    "_pvalues.rds"
+  )
+
+  if (!file.exists(file)) {
+    stop("File does not exist: ", file)
+  }
+
+  pvals <- readRDS(file)
+
+  tibble(
+    n = n,
+    k = k,
+    gamma_shape = gamma_shape,
+    discretize = discretize,
+    rep = seq_along(pvals),
+    cvm_pvalue = map_dbl(pvals, 1),
+    ad_pvalue = map_dbl(pvals, 2)
+  )
+}
+
+glm_gamma_results <- expand.grid(
+  n = sample_sizes,
+  k = k_values,
+  gamma_shape = gamma_shape,
+  discretize = discretize_values
+) |>
+  pmap_dfr(function(n, k, gamma_shape, discretize) {
+    read_glm_gamma_pvalues(
+      n = n,
+      k = k,
+      gamma_shape = gamma_shape,
+      discretize = discretize
+    )
+  })
+
+glm_gamma_long <- glm_gamma_results |>
+  pivot_longer(
+    cols = c(cvm_pvalue, ad_pvalue),
+    names_to = "method",
+    values_to = "pvalue"
+  ) |>
+  mutate(
+    method = recode(
+      method,
+      cvm_pvalue = "CvM",
+      ad_pvalue = "AD"
+    )
+  )
+```
+
+## P-value histograms
+
+### CvM p-values
+
+```{r}
+glm_gamma_long |>
+  filter(method == "CvM", is.finite(pvalue)) |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(k + discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of CvM p-values: Gamma GLM simulation"
+  ) +
+  theme_minimal()
+```
+
+### AD p-values
+
+```{r}
+glm_gamma_long |>
+  filter(method == "AD", is.finite(pvalue)) |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(k + discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of AD p-values: Gamma GLM simulation"
+  ) +
+  theme_minimal()
+```
+
+## Type-I error rate
+
+```{r}
+type_one_table <- glm_gamma_long |>
+  group_by(n, k, gamma_shape, method, discretize) |>
+  summarise(
+    MC = n(),
+    valid_MC = sum(is.finite(pvalue)),
+    missing_MC = sum(!is.finite(pvalue)),
+    type_one_error = mean(pvalue < alpha, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+### CvM type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "CvM") |>
+  arrange(k, discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for CvM: Gamma GLM simulation"
+  )
+```
+
+### AD type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "AD") |>
+  arrange(k, discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for AD: Gamma GLM simulation"
+  )
+```

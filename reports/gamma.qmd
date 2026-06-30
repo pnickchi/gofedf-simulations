@@ -1,0 +1,155 @@
+---
+title: "IID Gamma Simulation"
+format: html
+---
+
+```{r}
+library(dplyr)
+library(purrr)
+library(tibble)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+```
+
+# IID Gamma simulation
+
+This report summarizes the Monte Carlo simulation study for the IID Gamma goodness-of-fit test implemented in `gofedf::testGamma()`.
+
+Data are generated from Gamma distributions with scale equal to 1 and shape parameters 1, 7, and 50. For each setting, we examine the distribution of p-values and estimate the empirical type-I error rate at the nominal level 0.05.
+
+```{r}
+sample_sizes <- c(25, 50, 100, 250)
+shape_values <- c(1, 7, 50)
+discretize_values <- c(FALSE, TRUE)
+alpha <- 0.05
+```
+
+## Read p-values
+
+```{r}
+read_gamma_pvalues <- function(n, shape, discretize) {
+
+  file <- paste0(
+    "../results/gamma/gamma_iid_n", n,
+    "_shape", shape,
+    "_discretize_", discretize,
+    "_pvalues.rds"
+  )
+
+  if (!file.exists(file)) {
+    stop("File does not exist: ", file)
+  }
+
+  pvals <- readRDS(file)
+
+  tibble(
+    n = n,
+    shape = shape,
+    scale = 1,
+    discretize = discretize,
+    rep = seq_along(pvals),
+    cvm_pvalue = map_dbl(pvals, 1),
+    ad_pvalue = map_dbl(pvals, 2)
+  )
+}
+```
+
+```{r}
+gamma_results <- expand.grid(
+  n = sample_sizes,
+  shape = shape_values,
+  discretize = discretize_values
+) |>
+  pmap_dfr(function(n, shape, discretize) {
+    read_gamma_pvalues(
+      n = n,
+      shape = shape,
+      discretize = discretize
+    )
+  })
+
+gamma_long <- gamma_results |>
+  pivot_longer(
+    cols = c(cvm_pvalue, ad_pvalue),
+    names_to = "method",
+    values_to = "pvalue"
+  ) |>
+  mutate(
+    method = recode(
+      method,
+      cvm_pvalue = "CvM",
+      ad_pvalue = "AD"
+    )
+  )
+```
+
+## Histogram of p-values
+
+### CvM p-values
+
+```{r}
+gamma_long |>
+  filter(method == "CvM") |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(shape + discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of CvM p-values: IID Gamma simulation"
+  ) +
+  theme_minimal()
+```
+
+### AD p-values
+
+```{r}
+gamma_long |>
+  filter(method == "AD") |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(shape + discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of AD p-values: IID Gamma simulation"
+  ) +
+  theme_minimal()
+```
+
+## Type-I error rate
+
+```{r}
+type_one_table <- gamma_long |>
+  group_by(n, shape, scale, method, discretize) |>
+  summarise(
+    MC = n(),
+    type_one_error = mean(pvalue < alpha, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+### CvM type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "CvM") |>
+  arrange(shape, discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for CvM: IID Gamma simulation"
+  )
+```
+
+### AD type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "AD") |>
+  arrange(shape, discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for AD: IID Gamma simulation"
+  )
+```

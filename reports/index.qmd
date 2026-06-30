@@ -1,0 +1,34 @@
+---
+title: "gofedf Simulation Studies"
+format: html
+---
+
+# Simulation studies
+
+This website summarizes Monte Carlo simulation studies for goodness-of-fit tests implemented in the `gofedf` package.
+
+The current simulations include:
+
+- IID Normal simulations using `testNormal()`
+- IID Gamma simulations using `testGamma()`
+- Linear model normal-error simulations using `testLMNormal()`
+- Gamma GLM simulations using `testGLMGamma()`
+
+For each simulation, we examine the distribution of p-values and estimate the empirical type-I error rate at the nominal level 0.05.
+
+## Simulation reports
+
+- [IID Normal simulation](normal.html)
+- [IID Gamma simulation](gamma.html)
+- [Linear model normal-error simulation](lm_normal.html)
+- [Gamma GLM simulation](glm_gamma.html)
+
+## Simulation settings
+
+The simulations vary sample size and covariance approximation method. The sample sizes considered are:
+
+```{r}
+c(25, 50, 100, 250)
+```
+
+For each setting, the goodness-of-fit tests are applied using both the Cramér-von Mises and Anderson-Darling statistics, with both discretized and non-discretized covariance approximations.

@@ -1,0 +1,24 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "gofedf Simulation Studies"
+  navbar:
+    left:
+      - href: reports/index.qmd
+        text: Home
+      - href: reports/normal.qmd
+        text: Normal
+      - href: reports/gamma.qmd
+        text: Gamma
+      - href: reports/lm-normal.qmd
+        text: LM-Normal
+      - href: reports/glm-gamma.qmd
+        text: GLM-Gamma
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3

@@ -1,0 +1,151 @@
+---
+title: "Linear Model Normal Error Simulation"
+format: html
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(tidyr)
+library(knitr)
+```
+
+# Linear model normal error simulation
+
+This report summarizes the Monte Carlo simulation study for the linear-model residual normality goodness-of-fit test implemented in `gofedf::testLMNormal()`.
+
+For each sample size, data are generated from a linear regression model with normally distributed errors. A linear model is fitted to each simulated data set, and `testLMNormal()` is used to assess whether the model errors are consistent with normality.
+
+```{r}
+sample_sizes <- c(25, 50, 100, 250)
+k_value <- c(2, 5, 10)
+discretize_values <- c(FALSE, TRUE)
+alpha <- 0.05
+```
+
+## Read p-values
+
+```{r}
+read_lm_normal_pvalues <- function(n, k, discretize) {
+  file <- paste0(
+    "../results/lm_normal/lm_normal_n", n,
+    "_k", k,
+    "_discretize_", discretize,
+    "_pvalues.rds"
+  )
+
+  if (!file.exists(file)) {
+    stop("File does not exist: ", file)
+  }
+
+  pvals <- readRDS(file)
+
+  tibble(
+    n = n,
+    k = k,
+    discretize = discretize,
+    rep = seq_along(pvals),
+    cvm_pvalue = map_dbl(pvals, 1),
+    ad_pvalue = map_dbl(pvals, 2)
+  )
+}
+
+lm_normal_results <- expand.grid(
+  n = sample_sizes,
+  k = k_value,
+  discretize = discretize_values
+) |>
+  pmap_dfr(function(n, k, discretize) {
+    read_lm_normal_pvalues(
+      n = n,
+      k = k,
+      discretize = discretize
+    )
+  })
+
+lm_normal_long <- lm_normal_results |>
+  pivot_longer(
+    cols = c(cvm_pvalue, ad_pvalue),
+    names_to = "method",
+    values_to = "pvalue"
+  ) |>
+  mutate(
+    method = recode(
+      method,
+      cvm_pvalue = "CvM",
+      ad_pvalue = "AD"
+    )
+  )
+```
+
+## P-value histograms
+
+### CvM p-values
+
+```{r}
+lm_normal_long |>
+  filter(method == "CvM") |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(k + discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of CvM p-values: Linear model normal error simulation"
+  ) +
+  theme_minimal()
+```
+
+### AD p-values
+
+```{r}
+lm_normal_long |>
+  filter(method == "AD") |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(k + discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of AD p-values: Linear model normal error simulation"
+  ) +
+  theme_minimal()
+```
+
+## Type-I error rate
+
+```{r}
+type_one_table <- lm_normal_long |>
+  group_by(n, k, method, discretize) |>
+  summarise(
+    MC = n(),
+    type_one_error = mean(pvalue < alpha, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+### CvM type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "CvM") |>
+  arrange(discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for CvM: Linear model normal error simulation"
+  )
+```
+
+### AD type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "AD") |>
+  arrange(discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for AD: Linear model normal error simulation"
+  )
+```

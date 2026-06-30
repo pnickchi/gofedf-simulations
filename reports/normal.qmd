@@ -1,0 +1,140 @@
+---
+title: "IID Normal Simulation"
+format: html
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(knitr)
+```
+
+# IID Normal simulation
+
+Data are generated from a standard normal distribution:
+
+```{r}
+sample_sizes <- c(25, 50, 100, 250)
+discretize_values <- c(FALSE, TRUE)
+alpha <- 0.05
+```
+
+## Read p-values
+
+```{r}
+read_normal_pvalues <- function(n, discretize) {
+  file <- paste0(
+    "../results/normal/normal_iid_n", n,
+    "_discretize_", discretize,
+    "_pvalues.rds"
+  )
+
+  if (!file.exists(file)) {
+    stop("File does not exist: ", file)
+  }
+
+  pvals <- readRDS(file)
+
+  tibble(
+    n = n,
+    discretize = discretize,
+    rep = seq_along(pvals),
+    cvm_pvalue = map_dbl(pvals, 1),
+    ad_pvalue = map_dbl(pvals, 2)
+  )
+}
+
+normal_results <- expand.grid(
+  n = sample_sizes,
+  discretize = discretize_values
+) |>
+  pmap_dfr(function(n, discretize) {
+    read_normal_pvalues(n, discretize)
+  })
+
+normal_long <- normal_results |>
+  tidyr::pivot_longer(
+    cols = c(cvm_pvalue, ad_pvalue),
+    names_to = "method",
+    values_to = "pvalue"
+  ) |>
+  mutate(
+    method = recode(
+      method,
+      cvm_pvalue = "CvM",
+      ad_pvalue = "AD"
+    )
+  )
+```
+
+## P-value histograms
+
+### CvM p-values
+
+```{r}
+normal_long |>
+  filter(method == "CvM") |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of CvM p-values: IID Normal simulation"
+  ) +
+  theme_minimal()
+```
+
+### AD p-values
+
+```{r}
+normal_long |>
+  filter(method == "AD") |>
+  ggplot(aes(x = pvalue)) +
+  geom_histogram(bins = 30, boundary = 0) +
+  facet_grid(discretize ~ n) +
+  labs(
+    x = "p-value",
+    y = "Count",
+    title = "Histogram of AD p-values: IID Normal simulation"
+  ) +
+  theme_minimal()
+```
+
+## Type-I error rate
+
+```{r}
+type_one_table <- normal_long |>
+  group_by(n, method, discretize) |>
+  summarise(
+    MC = n(),
+    type_one_error = mean(pvalue < alpha, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+### CvM type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "CvM") |>
+  arrange(discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for CvM: IID Normal simulation"
+  )
+```
+
+### AD type-I error rate
+
+```{r}
+type_one_table |>
+  filter(method == "AD") |>
+  arrange(discretize, n) |>
+  kable(
+    digits = 4,
+    caption = "Estimated type-I error rates for AD: IID Normal simulation"
+  )
+```
