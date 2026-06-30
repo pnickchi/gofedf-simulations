@@ -99,7 +99,7 @@ The GitHub Actions workflow only renders the Quarto website. It does not rerun t
 The rendered simulation reports are available as a Quarto website:
 
 ```text
-https://<your-github-username>.github.io/<repo-name>/
+https://pnickchi.github.io/gofedf-simulations
 ```
 
 Replace this with the actual GitHub Pages URL after deployment.
